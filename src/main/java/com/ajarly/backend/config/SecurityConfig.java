@@ -40,13 +40,15 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        log.info("🔧 Configuring Security Filter Chain...");
+       // log.info("🔧 Configuring Security Filter Chain...");
         
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         // ========== PUBLIC ENDPOINTS ==========
+                        .requestMatchers("/", "/health").permitAll()  // ADD THIS LINE
+
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/locations/**").permitAll()
                         .requestMatchers("/api/v1/search/**").permitAll()
@@ -93,13 +95,13 @@ public class SecurityConfig {
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
-        log.info("✅ Security Filter Chain configured successfully");
+      //  log.info("✅ Security Filter Chain configured successfully");
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        log.info("🌐 Configuring CORS...");
+      //  log.info("🌐 Configuring CORS...");
         
         CorsConfiguration configuration = new CorsConfiguration();
         
@@ -123,14 +125,14 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         
-        log.info("✅ CORS configured: Allow all origins, methods, and headers");
+      //  log.info("✅ CORS configured: Allow all origins, methods, and headers");
         
         return source;
     }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        log.info("🔐 Creating BCryptPasswordEncoder...");
+     //   log.info("🔐 Creating BCryptPasswordEncoder...");
         return new BCryptPasswordEncoder();
     }
 }
