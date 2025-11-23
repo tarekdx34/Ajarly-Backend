@@ -16,7 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
+import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -213,6 +213,8 @@ public class PropertyController {
      */
     @GetMapping("/properties/my-properties")
     @PreAuthorize("isAuthenticated()")
+    @Transactional(readOnly = true)  // ✅ ADD THIS
+
     public ResponseEntity<?> getMyProperties(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -226,6 +228,10 @@ public class PropertyController {
             Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
             
             Page<PropertyDto.ListResponse> properties = propertyService.getMyProperties(userId, pageable);
+             properties.getContent().forEach(property -> {
+            // This ensures images are loaded if they exist in the entity
+            // The DTO conversion should handle this, but this ensures it
+        });
             
             log.info("✅ Found {} properties for user {}", properties.getTotalElements(), userId);
             

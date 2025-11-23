@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -86,6 +87,8 @@ public class BookingController {
      */
     @GetMapping("/owner")
     @PreAuthorize("hasAnyRole('LANDLORD', 'BROKER')")
+    @Transactional(readOnly = true)  // ✅ ADD THIS
+
     public ResponseEntity<ApiResponse<List<BookingListResponse>>> getOwnerBookings(
             @RequestParam(required = false) String status,
             HttpServletRequest httpRequest) {
@@ -95,6 +98,12 @@ public class BookingController {
         log.info("Fetching bookings for owner {}", userId);
         
         List<BookingListResponse> bookings = bookingService.getOwnerBookings(userId, status);
+        bookings.forEach(booking -> {
+        // Touch the lazy properties to ensure they're loaded
+        if (booking.getProperty() != null) {
+            booking.getProperty();
+        }
+    });
         
         return ResponseEntity.ok(ApiResponse.success(bookings, 
             "Fetched " + bookings.size() + " bookings"));
