@@ -228,10 +228,7 @@ public class PropertyController {
             Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
             
             Page<PropertyDto.ListResponse> properties = propertyService.getMyProperties(userId, pageable);
-             properties.getContent().forEach(property -> {
-            // This ensures images are loaded if they exist in the entity
-            // The DTO conversion should handle this, but this ensures it
-        });
+           
             
             log.info("✅ Found {} properties for user {}", properties.getTotalElements(), userId);
             

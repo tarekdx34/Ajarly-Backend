@@ -98,12 +98,7 @@ public class BookingController {
         log.info("Fetching bookings for owner {}", userId);
         
         List<BookingListResponse> bookings = bookingService.getOwnerBookings(userId, status);
-        bookings.forEach(booking -> {
-        // Touch the lazy properties to ensure they're loaded
-        if (booking.getProperty() != null) {
-            booking.getProperty();
-        }
-    });
+      
         
         return ResponseEntity.ok(ApiResponse.success(bookings, 
             "Fetched " + bookings.size() + " bookings"));
