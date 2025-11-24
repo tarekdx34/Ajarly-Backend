@@ -565,6 +565,7 @@ public class BookingService {
         return response;
     }
     
+    
     // ✅ REPLACE the existing mapToBookingListResponse method with this SAFE version
 private BookingListResponse mapToBookingListResponse(Booking booking, boolean isRenterView) {
     BookingListResponse response = new BookingListResponse();
@@ -635,4 +636,5 @@ private BookingListResponse mapToBookingListResponse(Booking booking, boolean is
     }
     
     return response;
+}
 }
