@@ -137,7 +137,8 @@ public class BookingService {
     public BookingResponse confirmBooking(Integer bookingId, Integer ownerId, BookingConfirmRequest request) {
         log.info("Confirming booking {} by owner {}", bookingId, ownerId);
         
-        Booking booking = bookingRepository.findById(bookingId)
+        // ✅ FIXED: Use findByIdWithDetails
+        Booking booking = bookingRepository.findByIdWithDetails(bookingId)
             .orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + bookingId));
         
         // Verify owner
@@ -199,7 +200,8 @@ public class BookingService {
     public BookingResponse rejectBooking(Integer bookingId, Integer ownerId, BookingRejectRequest request) {
         log.info("Rejecting booking {} by owner {}", bookingId, ownerId);
         
-        Booking booking = bookingRepository.findById(bookingId)
+        // ✅ FIXED: Use findByIdWithDetails
+        Booking booking = bookingRepository.findByIdWithDetails(bookingId)
             .orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + bookingId));
         
         // Verify owner
@@ -231,7 +233,8 @@ public class BookingService {
     public BookingResponse cancelBooking(Integer bookingId, Integer userId, BookingCancelRequest request) {
         log.info("Cancelling booking {} by user {}", bookingId, userId);
         
-        Booking booking = bookingRepository.findById(bookingId)
+        // ✅ FIXED: Use findByIdWithDetails
+        Booking booking = bookingRepository.findByIdWithDetails(bookingId)
             .orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + bookingId));
         
         // Verify user is either renter or owner
@@ -286,7 +289,8 @@ public class BookingService {
      * Get booking by ID
      */
     public BookingResponse getBookingById(Integer bookingId, Integer userId) {
-        Booking booking = bookingRepository.findById(bookingId)
+        // ✅ FIXED: Use findByIdWithDetails
+        Booking booking = bookingRepository.findByIdWithDetails(bookingId)
             .orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + bookingId));
         
         // Verify user has access to this booking
@@ -324,10 +328,8 @@ public class BookingService {
         
         if (status != null && !status.isEmpty()) {
             BookingStatus bookingStatus = BookingStatus.valueOf(status);
-            // FIXED: Use correct method name
             bookings = bookingRepository.findByOwnerUserIdAndStatusOrderByRequestedAtDesc(Long.valueOf(ownerId), bookingStatus);
         } else {
-            // FIXED: Use correct method name
             bookings = bookingRepository.findByOwnerUserIdOrderByRequestedAtDesc(Long.valueOf(ownerId));
         }
         
@@ -364,7 +366,6 @@ public class BookingService {
             checkPropertyAvailability(propertyId, checkIn, checkOut);
             return new AvailabilityCheckResponse(true, "Property is available for the selected dates", null, null);
         } catch (BusinessException e) {
-            // Find the conflicting unavailable date
             List<UnavailableDate> conflicts = unavailableDateRepository.findByPropertyAndDateRange(
                 Long.valueOf(propertyId), checkIn, checkOut);
             
@@ -434,31 +435,25 @@ public class BookingService {
     }
     
     private void checkPropertyAvailability(Integer propertyId, LocalDate checkIn, LocalDate checkOut) {
-        // Check unavailable dates
         Boolean hasUnavailable = unavailableDateRepository.hasUnavailableDates(Long.valueOf(propertyId), checkIn, checkOut);
         if (Boolean.TRUE.equals(hasUnavailable)) {
             throw new BusinessException("Property is not available for the selected dates");
         }
         
-        // Check overlapping bookings
         Boolean hasOverlapping = bookingRepository.hasOverlappingBookings(Long.valueOf(propertyId), checkIn, checkOut);
         if (Boolean.TRUE.equals(hasOverlapping)) {
             throw new BusinessException("Property has overlapping bookings for the selected dates");
         }
     }
     
-    // NEW METHOD: Check availability but exclude a specific booking
     private void checkPropertyAvailabilityExcludingBooking(Integer propertyId, LocalDate checkIn, LocalDate checkOut, Integer excludeBookingId) {
-        // Check unavailable dates
         Boolean hasUnavailable = unavailableDateRepository.hasUnavailableDates(Long.valueOf(propertyId), checkIn, checkOut);
         if (Boolean.TRUE.equals(hasUnavailable)) {
             throw new BusinessException("Property is not available for the selected dates");
         }
         
-        // Check overlapping bookings - but exclude the current booking
         List<Booking> overlappingBookings = bookingRepository.findOverlappingBookings(Long.valueOf(propertyId), checkIn, checkOut);
         
-        // Filter out the current booking
         boolean hasOtherOverlaps = overlappingBookings.stream()
             .anyMatch(b -> !b.getBookingId().equals(excludeBookingId));
         
@@ -468,7 +463,6 @@ public class BookingService {
     }
     
     private String generateBookingReference() {
-        // Format: AJ-YYYY-NNNNNN
         int year = LocalDateTime.now().getYear();
         long count = bookingRepository.count() + 1;
         return String.format("AJ-%d-%06d", year, count);
@@ -480,7 +474,6 @@ public class BookingService {
         response.setBookingId(booking.getBookingId());
         response.setBookingReference(booking.getBookingReference());
         
-        // Property info
         Property property = booking.getProperty();
         BookingResponse.PropertyBasicInfo propertyInfo = new BookingResponse.PropertyBasicInfo();
         propertyInfo.setPropertyId(property.getPropertyId().intValue());
@@ -491,7 +484,6 @@ public class BookingService {
         propertyInfo.setCity(property.getCity());
         propertyInfo.setAddress(property.getStreetAddress());
         
-        // Get cover image
         property.getImages().stream()
             .filter(PropertyImage::getIsCover)
             .findFirst()
@@ -499,7 +491,6 @@ public class BookingService {
         
         response.setProperty(propertyInfo);
         
-        // Renter info
         User renter = booking.getRenter();
         BookingResponse.UserBasicInfo renterInfo = new BookingResponse.UserBasicInfo();
         renterInfo.setUserId(renter.getUserId().intValue());
@@ -511,7 +502,6 @@ public class BookingService {
         renterInfo.setNationalIdVerified(renter.getNationalIdVerified());
         response.setRenter(renterInfo);
         
-        // Owner info
         User owner = booking.getOwner();
         BookingResponse.UserBasicInfo ownerInfo = new BookingResponse.UserBasicInfo();
         ownerInfo.setUserId(owner.getUserId().intValue());
@@ -523,7 +513,6 @@ public class BookingService {
         ownerInfo.setNationalIdVerified(owner.getNationalIdVerified());
         response.setOwner(ownerInfo);
         
-        // Dates
         response.setCheckInDate(booking.getCheckInDate());
         response.setCheckOutDate(booking.getCheckOutDate());
         response.setNumberOfNights(booking.getNumberOfNights());
@@ -531,7 +520,6 @@ public class BookingService {
         response.setNumberOfAdults(booking.getNumberOfAdults());
         response.setNumberOfChildren(booking.getNumberOfChildren());
         
-        // Pricing
         response.setPricePerNight(booking.getPricePerNight());
         response.setSubtotal(booking.getSubtotal());
         response.setCleaningFee(booking.getCleaningFee());
@@ -541,12 +529,10 @@ public class BookingService {
         response.setSecurityDeposit(booking.getSecurityDeposit());
         response.setCurrency(booking.getCurrency());
         
-        // Status
         response.setStatus(booking.getStatus().name());
         response.setPaymentStatus(booking.getPaymentStatus().name());
         response.setPaymentMethod(booking.getPaymentMethod() != null ? booking.getPaymentMethod().name() : null);
         
-        // Communication
         response.setSpecialRequests(booking.getSpecialRequests());
         response.setOwnerResponse(booking.getOwnerResponse());
         response.setRejectionReason(booking.getRejectionReason());
@@ -554,7 +540,6 @@ public class BookingService {
         response.setCancellationFee(booking.getCancellationFee());
         response.setRefundAmount(booking.getRefundAmount());
         
-        // Timestamps
         response.setRequestedAt(booking.getRequestedAt());
         response.setConfirmedAt(booking.getConfirmedAt());
         response.setRejectedAt(booking.getRejectedAt());
@@ -565,76 +550,64 @@ public class BookingService {
         return response;
     }
     
-    
-    // ✅ REPLACE the existing mapToBookingListResponse method with this SAFE version
-private BookingListResponse mapToBookingListResponse(Booking booking, boolean isRenterView) {
-    BookingListResponse response = new BookingListResponse();
-    
-    try {
-        response.setBookingId(booking.getBookingId());
-        response.setBookingReference(booking.getBookingReference());
-        
-        // ✅ SAFE Property access with fallback
-        response.setPropertyId(booking.getPropertyId()); // Use FK directly
+    private BookingListResponse mapToBookingListResponse(Booking booking, boolean isRenterView) {
+        BookingListResponse response = new BookingListResponse();
         
         try {
-            Property property = booking.getProperty();
-            if (property != null && !Boolean.TRUE.equals(property.getDeleted())) {
-                response.setPropertyTitle(property.getTitleAr());
-                response.setPropertyType(property.getPropertyType().name());
-                response.setPropertyCity(property.getCity());
-                
-                // Get cover image safely
-                if (property.getImages() != null && !property.getImages().isEmpty()) {
-                    property.getImages().stream()
-                        .filter(PropertyImage::getIsCover)
-                        .findFirst()
-                        .ifPresent(img -> response.setPropertyCoverImage(img.getImageUrl()));
+            response.setBookingId(booking.getBookingId());
+            response.setBookingReference(booking.getBookingReference());
+            response.setPropertyId(booking.getPropertyId());
+            
+            try {
+                Property property = booking.getProperty();
+                if (property != null && !Boolean.TRUE.equals(property.getDeleted())) {
+                    response.setPropertyTitle(property.getTitleAr());
+                    response.setPropertyType(property.getPropertyType().name());
+                    response.setPropertyCity(property.getCity());
+                    
+                    if (property.getImages() != null && !property.getImages().isEmpty()) {
+                        property.getImages().stream()
+                            .filter(PropertyImage::getIsCover)
+                            .findFirst()
+                            .ifPresent(img -> response.setPropertyCoverImage(img.getImageUrl()));
+                    }
+                } else {
+                    response.setPropertyTitle("Property No Longer Available");
+                    response.setPropertyType("N/A");
+                    response.setPropertyCity("N/A");
                 }
-            } else {
-                // Property deleted or unavailable
-                response.setPropertyTitle("Property No Longer Available");
+            } catch (Exception e) {
+                log.warn("Could not load property for booking {}: {}", booking.getBookingId(), e.getMessage());
+                response.setPropertyTitle("Property Unavailable");
                 response.setPropertyType("N/A");
                 response.setPropertyCity("N/A");
             }
+            
+            User otherParty = isRenterView ? booking.getOwner() : booking.getRenter();
+            response.setOtherPartyId(otherParty.getUserId().intValue());
+            response.setOtherPartyName(otherParty.getFirstName() + " " + otherParty.getLastName());
+            response.setOtherPartyPhone(otherParty.getPhoneNumber());
+            
+            response.setCheckInDate(booking.getCheckInDate());
+            response.setCheckOutDate(booking.getCheckOutDate());
+            response.setNumberOfNights(booking.getNumberOfNights());
+            response.setNumberOfGuests(booking.getNumberOfGuests());
+            
+            response.setTotalPrice(booking.getTotalPrice());
+            response.setCurrency(booking.getCurrency());
+            
+            response.setStatus(booking.getStatus().name());
+            response.setPaymentStatus(booking.getPaymentStatus().name());
+            
+            response.setRequestedAt(booking.getRequestedAt());
+            response.setExpiresAt(booking.getExpiresAt());
+            
         } catch (Exception e) {
-            // Hibernate proxy initialization failed
-            log.warn("Could not load property for booking {}: {}", booking.getBookingId(), e.getMessage());
-            response.setPropertyTitle("Property Unavailable");
-            response.setPropertyType("N/A");
-            response.setPropertyCity("N/A");
+            log.error("Error mapping booking {} to list response: {}", 
+                     booking != null ? booking.getBookingId() : "null", e.getMessage());
+            throw new RuntimeException("Error processing booking data", e);
         }
         
-        // Other party info (owner if renter view, renter if owner view)
-        User otherParty = isRenterView ? booking.getOwner() : booking.getRenter();
-        response.setOtherPartyId(otherParty.getUserId().intValue());
-        response.setOtherPartyName(otherParty.getFirstName() + " " + otherParty.getLastName());
-        response.setOtherPartyPhone(otherParty.getPhoneNumber());
-        
-        // Dates
-        response.setCheckInDate(booking.getCheckInDate());
-        response.setCheckOutDate(booking.getCheckOutDate());
-        response.setNumberOfNights(booking.getNumberOfNights());
-        response.setNumberOfGuests(booking.getNumberOfGuests());
-        
-        // Pricing
-        response.setTotalPrice(booking.getTotalPrice());
-        response.setCurrency(booking.getCurrency());
-        
-        // Status
-        response.setStatus(booking.getStatus().name());
-        response.setPaymentStatus(booking.getPaymentStatus().name());
-        
-        // Timestamps
-        response.setRequestedAt(booking.getRequestedAt());
-        response.setExpiresAt(booking.getExpiresAt());
-        
-    } catch (Exception e) {
-        log.error("Error mapping booking {} to list response: {}", 
-                 booking != null ? booking.getBookingId() : "null", e.getMessage());
-        throw new RuntimeException("Error processing booking data", e);
+        return response;
     }
-    
-    return response;
-}
 }

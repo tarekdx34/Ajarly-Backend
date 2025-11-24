@@ -15,9 +15,25 @@ import java.util.Optional;
 @Repository
 public interface BookingRepository extends JpaRepository<Booking, Integer> {
     
+    @Query("SELECT DISTINCT b FROM Booking b " +
+           "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH p.images " +
+           "LEFT JOIN FETCH b.renter r " +
+           "LEFT JOIN FETCH b.owner o " +
+           "WHERE b.bookingId = :bookingId " +
+           "AND (p.deleted = false OR p.deleted IS NULL)")
+    Optional<Booking> findByIdWithDetails(@Param("bookingId") Integer bookingId);
     // Find by booking reference
     Optional<Booking> findByBookingReference(String bookingReference);
     
+    @Query("SELECT DISTINCT b FROM Booking b " +
+           "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH p.images " +
+           "LEFT JOIN FETCH b.renter r " +
+           "LEFT JOIN FETCH b.owner o " +
+           "WHERE b.bookingReference = :reference " +
+           "AND (p.deleted = false OR p.deleted IS NULL)")
+    Optional<Booking> findByBookingReferenceWithDetails(@Param("reference") String reference);
     // ✅ FIXED: Find by renter with JOIN FETCH including images
     @Query("SELECT DISTINCT b FROM Booking b " +
            "LEFT JOIN FETCH b.property p " +
