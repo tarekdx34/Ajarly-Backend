@@ -13,8 +13,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.ajarly.backend.repository.BookingRepository;
+import com.ajarly.backend.model.Booking.BookingStatus;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -171,20 +173,47 @@ public class PropertyService {
         return mapToResponse(updated);
     }
     
-    @Transactional
-    public void deleteProperty(Long propertyId, Long ownerId) {
-        Property property = propertyRepository.findById(propertyId)
-            .orElseThrow(() -> new RuntimeException("Property not found"));
-        
-        if (!property.getOwner().getUserId().equals(ownerId)) {
-           throw new RuntimeException("Unauthorized");
-        }
-        
-        property.setStatus(PropertyStatus.deleted);
-        propertyRepository.save(property);
-        
-        log.info("✅ Property deleted successfully: {}", propertyId);
+    // Add this field to the class
+private final BookingRepository bookingRepository;
+
+// ✅ UPDATED deleteProperty method
+@Transactional
+public void deleteProperty(Long propertyId, Long ownerId) {
+    Property property = propertyRepository.findById(propertyId)
+        .orElseThrow(() -> new RuntimeException("Property not found"));
+    
+    if (!property.getOwner().getUserId().equals(ownerId)) {
+       throw new RuntimeException("Unauthorized");
     }
+    
+    // ✅ Check for active bookings
+    Long activeBookingCount = bookingRepository.countByPropertyIdAndStatus(
+        propertyId, BookingStatus.pending);
+    Long confirmedBookingCount = bookingRepository.countByPropertyIdAndStatus(
+        propertyId, BookingStatus.confirmed);
+    
+    if (confirmedBookingCount > 0) {
+        throw new RuntimeException(
+            "Cannot delete property: " + confirmedBookingCount + 
+            " confirmed booking(s) exist. Please wait for them to complete or contact support."
+        );
+    }
+    
+    // ✅ Set both deleted flag AND status
+    property.setDeleted(true);
+    property.setDeletedAt(LocalDateTime.now());
+    property.setDeletedBy(ownerId);
+    property.setStatus(PropertyStatus.deleted);
+    propertyRepository.save(property);
+    
+    // ✅ Auto-cancel pending bookings
+    if (activeBookingCount > 0) {
+        log.info("Auto-cancelling {} pending bookings for property {}", activeBookingCount, propertyId);
+        // This will be handled by the database trigger
+    }
+    
+    log.info("✅ Property {} soft-deleted by user {}", propertyId, ownerId);
+}
     
     private String generateSlug(String title) {
         String slug = title.toLowerCase()

@@ -18,19 +18,51 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     // Find by booking reference
     Optional<Booking> findByBookingReference(String bookingReference);
     
-    // Find by renter
-    List<Booking> findByRenterUserIdOrderByRequestedAtDesc(Long renterId);
+    // ✅ FIXED: Find by renter with JOIN FETCH
+    @Query("SELECT b FROM Booking b " +
+           "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH b.renter r " +
+           "LEFT JOIN FETCH b.owner o " +
+           "WHERE b.renter.userId = :renterId " +
+           "AND (p.deleted = false OR p.deleted IS NULL) " +
+           "ORDER BY b.requestedAt DESC")
+    List<Booking> findByRenterUserIdOrderByRequestedAtDesc(@Param("renterId") Long renterId);
     
-    // Find by renter with status
+    // ✅ FIXED: Find by renter with status and JOIN FETCH
+    @Query("SELECT b FROM Booking b " +
+           "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH b.renter r " +
+           "LEFT JOIN FETCH b.owner o " +
+           "WHERE b.renter.userId = :renterId " +
+           "AND b.status = :status " +
+           "AND (p.deleted = false OR p.deleted IS NULL) " +
+           "ORDER BY b.requestedAt DESC")
     List<Booking> findByRenterUserIdAndStatusOrderByRequestedAtDesc(
-        Long renterId, BookingStatus status);
+        @Param("renterId") Long renterId, 
+        @Param("status") BookingStatus status);
     
-    // Find by owner (owner is directly on booking)
-    List<Booking> findByOwnerUserIdOrderByRequestedAtDesc(Long ownerId);
+    // ✅ FIXED: Find by owner with JOIN FETCH
+    @Query("SELECT b FROM Booking b " +
+           "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH b.renter r " +
+           "LEFT JOIN FETCH b.owner o " +
+           "WHERE b.owner.userId = :ownerId " +
+           "AND (p.deleted = false OR p.deleted IS NULL) " +
+           "ORDER BY b.requestedAt DESC")
+    List<Booking> findByOwnerUserIdOrderByRequestedAtDesc(@Param("ownerId") Long ownerId);
     
-    // Find by owner with status
+    // ✅ FIXED: Find by owner with status and JOIN FETCH
+    @Query("SELECT b FROM Booking b " +
+           "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH b.renter r " +
+           "LEFT JOIN FETCH b.owner o " +
+           "WHERE b.owner.userId = :ownerId " +
+           "AND b.status = :status " +
+           "AND (p.deleted = false OR p.deleted IS NULL) " +
+           "ORDER BY b.requestedAt DESC")
     List<Booking> findByOwnerUserIdAndStatusOrderByRequestedAtDesc(
-        Long ownerId, BookingStatus status);
+        @Param("ownerId") Long ownerId, 
+        @Param("status") BookingStatus status);
     
     // Find by property
     List<Booking> findByPropertyPropertyIdOrderByRequestedAtDesc(Long propertyId);
@@ -47,8 +79,11 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     List<Booking> findExpiredBookings(@Param("now") LocalDateTime now);
     
     // Check if dates are available for a property (no overlapping bookings)
-    @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.property.propertyId = :propertyId " +
+    @Query("SELECT COUNT(b) > 0 FROM Booking b " +
+           "LEFT JOIN b.property p " +
+           "WHERE b.property.propertyId = :propertyId " +
            "AND b.status IN ('pending', 'confirmed') " +
+           "AND (p.deleted = false OR p.deleted IS NULL) " +
            "AND ((b.checkInDate <= :checkIn AND b.checkOutDate > :checkIn) " +
            "OR (b.checkInDate < :checkOut AND b.checkOutDate >= :checkOut) " +
            "OR (b.checkInDate >= :checkIn AND b.checkOutDate <= :checkOut))")
@@ -58,8 +93,11 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
         @Param("checkOut") LocalDate checkOut);
     
     // Find overlapping bookings (for confirmation check)
-    @Query("SELECT b FROM Booking b WHERE b.property.propertyId = :propertyId " +
+    @Query("SELECT b FROM Booking b " +
+           "LEFT JOIN FETCH b.property p " +
+           "WHERE b.property.propertyId = :propertyId " +
            "AND b.status IN ('pending', 'confirmed') " +
+           "AND (p.deleted = false OR p.deleted IS NULL) " +
            "AND ((b.checkInDate <= :checkIn AND b.checkOutDate > :checkIn) " +
            "OR (b.checkInDate < :checkOut AND b.checkOutDate >= :checkOut) " +
            "OR (b.checkInDate >= :checkIn AND b.checkOutDate <= :checkOut))")
@@ -74,17 +112,29 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
         @Param("propertyId") Long propertyId, 
         @Param("status") BookingStatus status);
     
-    // Find upcoming bookings for a renter
-    @Query("SELECT b FROM Booking b WHERE b.renter.userId = :renterId " +
-           "AND b.checkInDate >= :today AND b.status = 'confirmed' " +
+    // ✅ FIXED: Find upcoming bookings for a renter with JOIN FETCH
+    @Query("SELECT b FROM Booking b " +
+           "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH b.renter r " +
+           "LEFT JOIN FETCH b.owner o " +
+           "WHERE b.renter.userId = :renterId " +
+           "AND b.checkInDate >= :today " +
+           "AND b.status = 'confirmed' " +
+           "AND (p.deleted = false OR p.deleted IS NULL) " +
            "ORDER BY b.checkInDate ASC")
     List<Booking> findUpcomingBookingsForRenter(
         @Param("renterId") Long renterId,
         @Param("today") LocalDate today);
     
-    // Find upcoming bookings for an owner
-    @Query("SELECT b FROM Booking b WHERE b.owner.userId = :ownerId " +
-           "AND b.checkInDate >= :today AND b.status = 'confirmed' " +
+    // ✅ FIXED: Find upcoming bookings for an owner with JOIN FETCH
+    @Query("SELECT b FROM Booking b " +
+           "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH b.renter r " +
+           "LEFT JOIN FETCH b.owner o " +
+           "WHERE b.owner.userId = :ownerId " +
+           "AND b.checkInDate >= :today " +
+           "AND b.status = 'confirmed' " +
+           "AND (p.deleted = false OR p.deleted IS NULL) " +
            "ORDER BY b.checkInDate ASC")
     List<Booking> findUpcomingBookingsForOwner(
         @Param("ownerId") Long ownerId,

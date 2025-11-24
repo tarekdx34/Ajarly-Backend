@@ -565,24 +565,44 @@ public class BookingService {
         return response;
     }
     
-    private BookingListResponse mapToBookingListResponse(Booking booking, boolean isRenterView) {
-        BookingListResponse response = new BookingListResponse();
-        
+    // ✅ REPLACE the existing mapToBookingListResponse method with this SAFE version
+private BookingListResponse mapToBookingListResponse(Booking booking, boolean isRenterView) {
+    BookingListResponse response = new BookingListResponse();
+    
+    try {
         response.setBookingId(booking.getBookingId());
         response.setBookingReference(booking.getBookingReference());
         
-        // Property info
-        Property property = booking.getProperty();
-        response.setPropertyId(property.getPropertyId().intValue());
-        response.setPropertyTitle(property.getTitleAr());
-        response.setPropertyType(property.getPropertyType().name());
-        response.setPropertyCity(property.getCity());
+        // ✅ SAFE Property access with fallback
+        response.setPropertyId(booking.getPropertyId()); // Use FK directly
         
-        // Get cover image
-        property.getImages().stream()
-            .filter(PropertyImage::getIsCover)
-            .findFirst()
-            .ifPresent(img -> response.setPropertyCoverImage(img.getImageUrl()));
+        try {
+            Property property = booking.getProperty();
+            if (property != null && !Boolean.TRUE.equals(property.getDeleted())) {
+                response.setPropertyTitle(property.getTitleAr());
+                response.setPropertyType(property.getPropertyType().name());
+                response.setPropertyCity(property.getCity());
+                
+                // Get cover image safely
+                if (property.getImages() != null && !property.getImages().isEmpty()) {
+                    property.getImages().stream()
+                        .filter(PropertyImage::getIsCover)
+                        .findFirst()
+                        .ifPresent(img -> response.setPropertyCoverImage(img.getImageUrl()));
+                }
+            } else {
+                // Property deleted or unavailable
+                response.setPropertyTitle("Property No Longer Available");
+                response.setPropertyType("N/A");
+                response.setPropertyCity("N/A");
+            }
+        } catch (Exception e) {
+            // Hibernate proxy initialization failed
+            log.warn("Could not load property for booking {}: {}", booking.getBookingId(), e.getMessage());
+            response.setPropertyTitle("Property Unavailable");
+            response.setPropertyType("N/A");
+            response.setPropertyCity("N/A");
+        }
         
         // Other party info (owner if renter view, renter if owner view)
         User otherParty = isRenterView ? booking.getOwner() : booking.getRenter();
@@ -608,6 +628,11 @@ public class BookingService {
         response.setRequestedAt(booking.getRequestedAt());
         response.setExpiresAt(booking.getExpiresAt());
         
-        return response;
+    } catch (Exception e) {
+        log.error("Error mapping booking {} to list response: {}", 
+                 booking != null ? booking.getBookingId() : "null", e.getMessage());
+        throw new RuntimeException("Error processing booking data", e);
     }
+    
+    return response;
 }

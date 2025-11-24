@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,8 +26,10 @@ public class Booking {
     @Column(name = "booking_reference", unique = true, nullable = false, length = 50)
     private String bookingReference;
     
+    // ✅ FIXED: Added @NotFound to handle deleted properties gracefully
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_id", nullable = false)
+    @NotFound(action = NotFoundAction.IGNORE)
     private Property property;
     
     @ManyToOne(fetch = FetchType.LAZY)
@@ -34,6 +39,14 @@ public class Booking {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
+    
+    // ✅ ADDED: Store property ID directly for safety
+    @Column(name = "property_id", insertable = false, updatable = false)
+    private Integer propertyId;
+    
+    // ✅ ADDED: Transient field to cache property title
+    @Transient
+    private String cachedPropertyTitle;
     
     @Column(name = "check_in_date", nullable = false)
     private LocalDate checkInDate;
@@ -147,6 +160,31 @@ public class Booking {
     
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
+    
+    // ✅ ADDED: Helper method to safely get property title
+    @PostLoad
+    public void cachePropertyData() {
+        try {
+            if (property != null) {
+                this.cachedPropertyTitle = property.getTitleAr();
+            }
+        } catch (Exception e) {
+            log.warn("Could not load property for booking {}: {}", bookingId, e.getMessage());
+            this.cachedPropertyTitle = "Property Unavailable";
+        }
+    }
+    
+    // ✅ ADDED: Safe getter for property title
+    public String getPropertyTitleSafe() {
+        if (cachedPropertyTitle != null) {
+            return cachedPropertyTitle;
+        }
+        try {
+            return property != null ? property.getTitleAr() : "Property Unavailable";
+        } catch (Exception e) {
+            return "Property Unavailable";
+        }
+    }
     
     // Enums
     public enum BookingStatus {
