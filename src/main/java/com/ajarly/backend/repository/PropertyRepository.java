@@ -47,6 +47,18 @@ public interface PropertyRepository extends JpaRepository<Property, Long>, JpaSp
     @Query("SELECT COUNT(p) FROM Property p WHERE p.deleted = false OR p.deleted IS NULL")
     long countNotDeleted();
     
+    
+    /**
+     * ✅ Find properties by status with owner eagerly loaded (prevents lazy loading exception)
+     */
+    @Query("SELECT DISTINCT p FROM Property p " +
+        "LEFT JOIN FETCH p.owner " +
+        "WHERE p.status = :status " +
+        "AND (p.deleted = false OR p.deleted IS NULL)")
+    Page<Property> findByStatusWithOwner(
+        @Param("status") PropertyStatus status, 
+        Pageable pageable
+    );
     // ============================================
     // BASIC FINDER METHODS
     // ============================================

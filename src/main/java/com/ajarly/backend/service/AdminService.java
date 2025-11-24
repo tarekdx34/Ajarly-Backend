@@ -58,17 +58,14 @@ public class AdminService {
                 .generatedAt(LocalDateTime.now())
                 .build();
         
-        // ✅ استخدم countByStatus بدل findByStatus
         Long pendingApprovalsCount = propertyRepository.countByStatus(
             PropertyStatus.pending_approval
         );
         
-        // ✅ FIXED: Count only active properties
         Long activeProperties = propertyRepository.countByStatus(
             PropertyStatus.active
         );
         
-        // ✅ FIXED: Count only banned users (is_active = false)
         Long bannedUsers = userRepository.findAll().stream()
             .filter(u -> !u.getIsActive())
             .count();
@@ -88,26 +85,38 @@ public class AdminService {
     // ============ PENDING PROPERTIES ============
     
     /**
-     * ✅ FIXED: Get only pending_approval properties
+     * ✅ FIXED: Get pending properties with owners loaded (no lazy loading issues)
      */
+    @Transactional(readOnly = true)  // ✅ ADDED: Ensures session stays open
     public Page<PendingPropertyResponse> getPendingProperties(Pageable pageable) {
-        // ✅ جيب العقارات اللي pending_approval فقط
-        Page<Property> pendingProperties = propertyRepository.findByStatus(
+        log.info("📋 Fetching pending properties for admin approval");
+        
+        // ✅ Use the new query that fetches with owner
+        Page<Property> pendingProperties = propertyRepository.findByStatusWithOwner(
             PropertyStatus.pending_approval, 
             pageable
         );
         
+        log.info("✅ Found {} pending properties", pendingProperties.getTotalElements());
+        
         return pendingProperties.map(this::convertToPropertyResponse);
     }
     
+    /**
+     * ✅ SAFE: Convert Property to PendingPropertyResponse
+     * Owner is already loaded, so no lazy loading exception
+     */
     private PendingPropertyResponse convertToPropertyResponse(Property property) {
+        // ✅ Owner is already loaded via JOIN FETCH
+        User owner = property.getOwner();
+        
         return PendingPropertyResponse.builder()
                 .propertyId(property.getPropertyId())
                 .titleAr(property.getTitleAr())
                 .titleEn(property.getTitleEn())
-                .ownerName(property.getOwner().getFirstName() + " " + property.getOwner().getLastName())
-                .ownerEmail(property.getOwner().getEmail())
-                .ownerPhone(property.getOwner().getPhoneNumber())
+                .ownerName(owner.getFirstName() + " " + owner.getLastName())
+                .ownerEmail(owner.getEmail())
+                .ownerPhone(owner.getPhoneNumber())
                 .propertyType(property.getPropertyType())
                 .rentalType(property.getRentalType())
                 .governorate(property.getGovernorate())
@@ -140,7 +149,7 @@ public class AdminService {
                 AdminLog.AdminTargetType.property, propertyId,
                 "Property " + propertyId + " approved and verified");
         
-        log.info("Property {} approved by admin {}", propertyId, adminId);
+        log.info("✅ Property {} approved by admin {}", propertyId, adminId);
     }
     
     // ============ REJECT PROPERTY ============
@@ -160,7 +169,7 @@ public class AdminService {
                 AdminLog.AdminTargetType.property, propertyId,
                 request.getReason());
         
-        log.info("Property {} rejected by admin {} with reason: {}",
+        log.info("❌ Property {} rejected by admin {} with reason: {}",
                 propertyId, adminId, request.getReason());
     }
     
@@ -182,7 +191,7 @@ public class AdminService {
                 AdminLog.AdminTargetType.user, userId,
                 request.getReason());
         
-        log.info("User {} banned by admin {} with reason: {}",
+        log.info("🚫 User {} banned by admin {} with reason: {}",
                 userId, adminId, request.getReason());
     }
     
@@ -204,7 +213,7 @@ public class AdminService {
                 AdminLog.AdminTargetType.user, userId,
                 "User unbanned");
         
-        log.info("User {} unbanned by admin {}", userId, adminId);
+        log.info("✅ User {} unbanned by admin {}", userId, adminId);
     }
     
     // ============ VERIFY USER ID ============
@@ -225,7 +234,7 @@ public class AdminService {
                 AdminLog.AdminTargetType.user, userId,
                 "User ID verified");
         
-        log.info("User {} verified by admin {}", userId, adminId);
+        log.info("✅ User {} verified by admin {}", userId, adminId);
     }
     
     // ============ GET ALL USERS FOR MANAGEMENT ============
