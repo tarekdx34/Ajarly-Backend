@@ -17,6 +17,7 @@ import com.ajarly.backend.repository.BookingRepository;
 import com.ajarly.backend.model.Booking.BookingStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +26,7 @@ public class PropertyService {
     
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
+    private final BookingRepository bookingRepository;
     
     @Transactional
     public PropertyDto.Response createProperty(PropertyDto.CreateRequest request, Long ownerId) {
@@ -37,7 +39,10 @@ public class PropertyService {
         property.setTitleEn(request.getTitleEn());
         property.setDescriptionAr(request.getDescriptionAr());
         property.setDescriptionEn(request.getDescriptionEn());
-        property.setSlug(generateSlug(request.getTitleAr()));
+        
+        // ✅ FIXED: Use English title first, fallback to generated unique slug
+        property.setSlug(generateUniqueSlug(request.getTitleEn(), request.getTitleAr()));
+        
         property.setPropertyType(request.getPropertyType());
         property.setRentalType(request.getRentalType());
         property.setGovernorate(request.getGovernorate());
@@ -74,7 +79,6 @@ public class PropertyService {
     
     @Transactional
     public PropertyDto.Response getPropertyById(Long propertyId) {
-        // استخدم الـ method الجديدة اللي بتجيب الصور
         Property property = propertyRepository.findByIdWithImages(propertyId);
         
         if (property == null) {
@@ -99,7 +103,6 @@ public class PropertyService {
         
         log.info("🔍 Searching properties: gov={}, city={}, type={}, beds={}", governorate, city, propertyType, bedrooms);
         
-        // استخدم الـ query الجديدة اللي بتجيب الصور
         Page<Property> properties = propertyRepository.searchPropertiesWithImages(
             PropertyStatus.active,
             governorate,
@@ -173,55 +176,100 @@ public class PropertyService {
         return mapToResponse(updated);
     }
     
-    // Add this field to the class
-private final BookingRepository bookingRepository;
-
-// ✅ UPDATED deleteProperty method
-@Transactional
-public void deleteProperty(Long propertyId, Long ownerId) {
-    Property property = propertyRepository.findById(propertyId)
-        .orElseThrow(() -> new RuntimeException("Property not found"));
-    
-    if (!property.getOwner().getUserId().equals(ownerId)) {
-       throw new RuntimeException("Unauthorized");
-    }
-    
-    // ✅ Check for active bookings
-    Long activeBookingCount = bookingRepository.countByPropertyIdAndStatus(
-        propertyId, BookingStatus.pending);
-    Long confirmedBookingCount = bookingRepository.countByPropertyIdAndStatus(
-        propertyId, BookingStatus.confirmed);
-    
-    if (confirmedBookingCount > 0) {
-        throw new RuntimeException(
-            "Cannot delete property: " + confirmedBookingCount + 
-            " confirmed booking(s) exist. Please wait for them to complete or contact support."
-        );
-    }
-    
-    // ✅ Set both deleted flag AND status
-    property.setDeleted(true);
-    property.setDeletedAt(LocalDateTime.now());
-    property.setDeletedBy(ownerId);
-    property.setStatus(PropertyStatus.deleted);
-    propertyRepository.save(property);
-    
-    // ✅ Auto-cancel pending bookings
-    if (activeBookingCount > 0) {
-        log.info("Auto-cancelling {} pending bookings for property {}", activeBookingCount, propertyId);
-        // This will be handled by the database trigger
-    }
-    
-    log.info("✅ Property {} soft-deleted by user {}", propertyId, ownerId);
-}
-    
-    private String generateSlug(String title) {
-        String slug = title.toLowerCase()
-            .replaceAll("[^a-z0-9\\s-]", "")
-            .replaceAll("\\s+", "-");
+    @Transactional
+    public void deleteProperty(Long propertyId, Long ownerId) {
+        Property property = propertyRepository.findById(propertyId)
+            .orElseThrow(() -> new RuntimeException("Property not found"));
         
-        if (propertyRepository.existsBySlug(slug)) {
-            slug = slug + "-" + System.currentTimeMillis();
+        if (!property.getOwner().getUserId().equals(ownerId)) {
+           throw new RuntimeException("Unauthorized");
+        }
+        
+        // Check for active bookings
+        Long activeBookingCount = bookingRepository.countByPropertyIdAndStatus(
+            propertyId, BookingStatus.pending);
+        Long confirmedBookingCount = bookingRepository.countByPropertyIdAndStatus(
+            propertyId, BookingStatus.confirmed);
+        
+        if (confirmedBookingCount > 0) {
+            throw new RuntimeException(
+                "Cannot delete property: " + confirmedBookingCount + 
+                " confirmed booking(s) exist. Please wait for them to complete or contact support."
+            );
+        }
+        
+        // Soft delete
+        property.setDeleted(true);
+        property.setDeletedAt(LocalDateTime.now());
+        property.setDeletedBy(ownerId);
+        property.setStatus(PropertyStatus.deleted);
+        propertyRepository.save(property);
+        
+        if (activeBookingCount > 0) {
+            log.info("Auto-cancelling {} pending bookings for property {}", activeBookingCount, propertyId);
+        }
+        
+        log.info("✅ Property {} soft-deleted by user {}", propertyId, ownerId);
+    }
+    
+    /**
+     * ✅ FIXED: Generate unique slug with proper fallback logic
+     */
+    private String generateUniqueSlug(String titleEn, String titleAr) {
+        String baseSlug;
+        
+        // Try English title first
+        if (titleEn != null && !titleEn.trim().isEmpty()) {
+            baseSlug = sanitizeSlug(titleEn);
+        } 
+        // Fallback to property type + UUID if English title is empty or becomes empty after sanitization
+        else {
+            baseSlug = "property-" + UUID.randomUUID().toString().substring(0, 8);
+            log.info("📝 Generated fallback slug: {}", baseSlug);
+        }
+        
+        // If sanitization resulted in empty or just hyphen, use fallback
+        if (baseSlug.isEmpty() || baseSlug.equals("-")) {
+            baseSlug = "property-" + UUID.randomUUID().toString().substring(0, 8);
+            log.info("📝 Slug sanitization resulted in empty string, using fallback: {}", baseSlug);
+        }
+        
+        // Ensure uniqueness
+        return ensureUniqueSlug(baseSlug);
+    }
+    
+    /**
+     * ✅ Sanitize title to create a valid slug
+     */
+    private String sanitizeSlug(String title) {
+        if (title == null || title.trim().isEmpty()) {
+            return "";
+        }
+        
+        return title.toLowerCase()
+            .replaceAll("[^a-z0-9\\s-]", "")  // Remove non-alphanumeric except spaces and hyphens
+            .trim()
+            .replaceAll("\\s+", "-")          // Replace spaces with hyphens
+            .replaceAll("-+", "-")            // Replace multiple hyphens with single hyphen
+            .replaceAll("^-|-$", "");         // Remove leading/trailing hyphens
+    }
+    
+    /**
+     * ✅ Ensure slug is unique by appending counter if needed
+     */
+    private String ensureUniqueSlug(String baseSlug) {
+        String slug = baseSlug;
+        int counter = 1;
+        
+        while (propertyRepository.existsBySlug(slug)) {
+            slug = baseSlug + "-" + counter;
+            counter++;
+            
+            // Safety check to prevent infinite loops
+            if (counter > 1000) {
+                slug = baseSlug + "-" + System.currentTimeMillis();
+                break;
+            }
         }
         
         return slug;
@@ -268,9 +316,6 @@ public void deleteProperty(Long propertyId, Long ownerId) {
         return response;
     }
     
-    /**
-     * ✅ Map Property to ListResponse with cover image
-     */
     private PropertyDto.ListResponse mapToListResponse(Property property) {
         PropertyDto.ListResponse response = new PropertyDto.ListResponse();
         response.setPropertyId(property.getPropertyId());
@@ -288,13 +333,11 @@ public void deleteProperty(Long propertyId, Long ownerId) {
         response.setTotalReviews(property.getTotalReviews());
         response.setIsFeatured(property.getIsFeatured());
         
-        // ✅ معالجة الصور بشكل آمن
         if (property.getImages() != null && !property.getImages().isEmpty()) {
-            // البحث عن الصورة المحددة كغلاف
             PropertyImage coverImage = property.getImages().stream()
                 .filter(img -> img.getIsCover() != null && img.getIsCover())
                 .findFirst()
-                .orElse(property.getImages().get(0)); // لو مافيش cover، خذ أول صورة
+                .orElse(property.getImages().get(0));
             
             response.setCoverImage(coverImage.getImageUrl());
             
