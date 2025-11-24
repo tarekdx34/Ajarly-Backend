@@ -38,6 +38,20 @@ public interface TransactionRepository extends JpaRepository<Transaction, Intege
         @Param("status") TransactionStatus status
     );
     
+    // ============================================
+// ADD THIS METHOD TO TransactionRepository.java
+// ============================================
+
+/**
+ * ✅ Find transactions by user ID with booking and property eagerly loaded
+ * Prevents lazy loading exceptions when accessing booking.property
+ */
+    @Query("SELECT DISTINCT t FROM Transaction t " +
+        "LEFT JOIN FETCH t.booking b " +
+        "LEFT JOIN FETCH b.property " +
+        "WHERE t.user.userId = :userId " +
+        "ORDER BY t.createdAt DESC")
+    List<Transaction> findByUserIdWithBookingAndProperty(@Param("userId") Long userId);
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
            "WHERE t.user.userId = :userId AND t.status = 'completed'")
     Double getTotalTransactionsByUser(@Param("userId") Long userId);

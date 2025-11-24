@@ -352,43 +352,49 @@ public class PaymentService {
      */
     public List<PaymentDto.PaymentHistoryResponse> getPaymentHistory(Long userId) {
         log.info("🔵 Fetching payment history for user: {}", userId);
-        
-        List<Transaction> transactions = transactionRepository
-            .findByUser_UserIdOrderByCreatedAtDesc(userId);
-        
-        return transactions.stream()
-            .map(this::mapToHistoryResponse)
-            .collect(Collectors.toList());
+    
+    // ✅ Use new query that fetches with booking and property
+    List<Transaction> transactions = transactionRepository
+        .findByUserIdWithBookingAndProperty(userId);
+    
+    log.info("✅ Found {} transactions for user {}", transactions.size(), userId);
+    
+    return transactions.stream()
+        .map(this::mapToHistoryResponse)
+        .collect(Collectors.toList());
     }
     
     /**
      * Helper: Map Transaction to PaymentHistoryResponse
      */
     private PaymentDto.PaymentHistoryResponse mapToHistoryResponse(Transaction transaction) {
-        String bookingRef = null;
-        String propertyTitle = null;
+    String bookingRef = null;
+    String propertyTitle = null;
+    
+    // ✅ Booking is already loaded via JOIN FETCH
+    if (transaction.getBooking() != null) {
+        bookingRef = transaction.getBooking().getBookingReference();
         
-        if (transaction.getBooking() != null) {
-            bookingRef = transaction.getBooking().getBookingReference();
-            if (transaction.getBooking().getProperty() != null) {
-                propertyTitle = transaction.getBooking().getProperty().getTitleAr();
-            }
+        // ✅ Property is already loaded via JOIN FETCH
+        if (transaction.getBooking().getProperty() != null) {
+            propertyTitle = transaction.getBooking().getProperty().getTitleAr();
         }
-        
-        return new PaymentDto.PaymentHistoryResponse(
-            transaction.getTransactionId(),
-            transaction.getTransactionReference(),
-            transaction.getTransactionType().name(),
-            transaction.getAmount(),
-            transaction.getCurrency(),
-            transaction.getPaymentMethod().name(),
-            transaction.getStatus().name(),
-            bookingRef,
-            propertyTitle,
-            transaction.getCreatedAt(),
-            transaction.getCompletedAt()
-        );
     }
+    
+    return new PaymentDto.PaymentHistoryResponse(
+        transaction.getTransactionId(),
+        transaction.getTransactionReference(),
+        transaction.getTransactionType().name(),
+        transaction.getAmount(),
+        transaction.getCurrency(),
+        transaction.getPaymentMethod().name(),
+        transaction.getStatus().name(),
+        bookingRef,
+        propertyTitle,
+        transaction.getCreatedAt(),
+        transaction.getCompletedAt()
+    );
+}
     
     /**
      * Helper: Calculate platform fee (10%)
