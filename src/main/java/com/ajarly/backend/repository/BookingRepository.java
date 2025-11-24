@@ -18,9 +18,10 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     // Find by booking reference
     Optional<Booking> findByBookingReference(String bookingReference);
     
-    // ✅ FIXED: Find by renter with JOIN FETCH
-    @Query("SELECT b FROM Booking b " +
+    // ✅ FIXED: Find by renter with JOIN FETCH including images
+    @Query("SELECT DISTINCT b FROM Booking b " +
            "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH p.images " +
            "LEFT JOIN FETCH b.renter r " +
            "LEFT JOIN FETCH b.owner o " +
            "WHERE b.renter.userId = :renterId " +
@@ -28,9 +29,10 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "ORDER BY b.requestedAt DESC")
     List<Booking> findByRenterUserIdOrderByRequestedAtDesc(@Param("renterId") Long renterId);
     
-    // ✅ FIXED: Find by renter with status and JOIN FETCH
-    @Query("SELECT b FROM Booking b " +
+    // ✅ FIXED: Find by renter with status and JOIN FETCH including images
+    @Query("SELECT DISTINCT b FROM Booking b " +
            "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH p.images " +
            "LEFT JOIN FETCH b.renter r " +
            "LEFT JOIN FETCH b.owner o " +
            "WHERE b.renter.userId = :renterId " +
@@ -41,9 +43,10 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
         @Param("renterId") Long renterId, 
         @Param("status") BookingStatus status);
     
-    // ✅ FIXED: Find by owner with JOIN FETCH
-    @Query("SELECT b FROM Booking b " +
+    // ✅ FIXED: Find by owner with JOIN FETCH including images
+    @Query("SELECT DISTINCT b FROM Booking b " +
            "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH p.images " +
            "LEFT JOIN FETCH b.renter r " +
            "LEFT JOIN FETCH b.owner o " +
            "WHERE b.owner.userId = :ownerId " +
@@ -51,9 +54,10 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
            "ORDER BY b.requestedAt DESC")
     List<Booking> findByOwnerUserIdOrderByRequestedAtDesc(@Param("ownerId") Long ownerId);
     
-    // ✅ FIXED: Find by owner with status and JOIN FETCH
-    @Query("SELECT b FROM Booking b " +
+    // ✅ FIXED: Find by owner with status and JOIN FETCH including images
+    @Query("SELECT DISTINCT b FROM Booking b " +
            "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH p.images " +
            "LEFT JOIN FETCH b.renter r " +
            "LEFT JOIN FETCH b.owner o " +
            "WHERE b.owner.userId = :ownerId " +
@@ -93,8 +97,9 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
         @Param("checkOut") LocalDate checkOut);
     
     // Find overlapping bookings (for confirmation check)
-    @Query("SELECT b FROM Booking b " +
+    @Query("SELECT DISTINCT b FROM Booking b " +
            "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH p.images " +
            "WHERE b.property.propertyId = :propertyId " +
            "AND b.status IN ('pending', 'confirmed') " +
            "AND (p.deleted = false OR p.deleted IS NULL) " +
@@ -112,9 +117,10 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
         @Param("propertyId") Long propertyId, 
         @Param("status") BookingStatus status);
     
-    // ✅ FIXED: Find upcoming bookings for a renter with JOIN FETCH
-    @Query("SELECT b FROM Booking b " +
+    // ✅ FIXED: Find upcoming bookings for a renter with JOIN FETCH including images
+    @Query("SELECT DISTINCT b FROM Booking b " +
            "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH p.images " +
            "LEFT JOIN FETCH b.renter r " +
            "LEFT JOIN FETCH b.owner o " +
            "WHERE b.renter.userId = :renterId " +
@@ -126,9 +132,10 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
         @Param("renterId") Long renterId,
         @Param("today") LocalDate today);
     
-    // ✅ FIXED: Find upcoming bookings for an owner with JOIN FETCH
-    @Query("SELECT b FROM Booking b " +
+    // ✅ FIXED: Find upcoming bookings for an owner with JOIN FETCH including images
+    @Query("SELECT DISTINCT b FROM Booking b " +
            "LEFT JOIN FETCH b.property p " +
+           "LEFT JOIN FETCH p.images " +
            "LEFT JOIN FETCH b.renter r " +
            "LEFT JOIN FETCH b.owner o " +
            "WHERE b.owner.userId = :ownerId " +
